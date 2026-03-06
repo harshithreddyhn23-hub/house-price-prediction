@@ -1,3 +1,12 @@
+import os
+import subprocess
+import joblib
+
+# if model not present, train it
+if not os.path.exists("house_model.pkl"):
+    subprocess.run(["python", "train_model.py"])
+
+model = joblib.load("house_model.pkl")
 import streamlit as st
 import joblib
 import pandas as pd
