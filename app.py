@@ -1,64 +1,182 @@
-import os
-import subprocess
-import joblib
-
-# if model not present, train it
-if not os.path.exists("house_model.pkl"):
-    subprocess.run(["python", "train_model.py"])
-
-model = joblib.load("house_model.pkl")
-import streamlit as st
-import joblib
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import r2_score
+import joblib
 
-# load trained model
-model = joblib.load("house_model.pkl")
+from google.colab import files
+import pandas as pd # Ensure pandas is imported here for robustness
+print("Please upload the 'housing.csv' file.")
+uploaded = files.upload()
+if uploaded:
+    data_file_name = next(iter(uploaded))
+    data = pd.read_csv(data_file_name)
+    print(f"Successfully loaded {data_file_name}")
+else:
+    print("No file uploaded. Please upload the 'housing.csv' file.")
+    # Create an empty DataFrame to avoid NameError if no file is uploaded, though subsequent steps will fail.
+    data = pd.DataFrame()
+data.head()
 
-st.title("🏠 California House Price Prediction")
+data.info()
+data.describe()
 
-st.write("Enter house details")
+plt.figure(figsize=(6,4))
+sns.histplot(data["median_house_value"], bins=50)
+plt.title("House Price Distribution")
+plt.show()
 
-longitude = st.number_input("Longitude", value=-122.23)
-latitude = st.number_input("Latitude", value=37.88)
-housing_median_age = st.number_input("Housing Median Age", value=20)
-total_rooms = st.number_input("Total Rooms", value=1000)
-total_bedrooms = st.number_input("Total Bedrooms", value=200)
-population = st.number_input("Population", value=800)
-households = st.number_input("Households", value=300)
-median_income = st.number_input("Median Income", value=3.5)
-
-ocean_proximity = st.selectbox(
-    "Ocean Proximity",
-    ["<1H OCEAN","INLAND","ISLAND","NEAR BAY","NEAR OCEAN"]
+sns.scatterplot(
+x="median_income",
+y="median_house_value",
+data=data
 )
 
-if st.button("Predict Price"):
+plt.figure(figsize=(12,8))
+sns.heatmap(data.select_dtypes(include='number').corr(), annot=True, cmap="coolwarm")
+plt.show()
 
-    input_data = pd.DataFrame({
-        "longitude":[longitude],
-        "latitude":[latitude],
-        "housing_median_age":[housing_median_age],
-        "total_rooms":[total_rooms],
-        "total_bedrooms":[total_bedrooms],
-        "population":[population],
-        "households":[households],
-        "median_income":[median_income],
-        "ocean_proximity":[ocean_proximity]
-    })
+data.plot(
+kind="scatter",
+x="longitude",
+y="latitude",
+alpha=0.4,
+s=data["population"]/100,
+label="population"
+)
 
-    # convert categorical to dummy variables
-    input_data = pd.get_dummies(input_data)
+data["rooms_per_household"] = data["total_rooms"] / data["households"]
+data["bedrooms_per_room"] = data["total_bedrooms"] / data["total_rooms"]
+data["population_per_household"] = data["population"] / data["households"]
 
-    # add missing columns
-    required_columns = model.feature_names_in_
+data["total_bedrooms"] = data["total_bedrooms"].fillna(
+    data["total_bedrooms"].median()
+)
 
-    for col in required_columns:
-        if col not in input_data.columns:
-            input_data[col] = 0
+data = pd.get_dummies(
+data,
+columns=["ocean_proximity"]
+)
 
-    # reorder columns
-    input_data = input_data[required_columns]
+X = data.drop("median_house_value", axis=1)
+y = data["median_house_value"]
 
-    prediction = model.predict(input_data)
+X_train, X_test, y_train, y_test = train_test_split(
+X,
+y,
+test_size=0.2,
+random_state=42
+)
 
-    st.success(f"Predicted House Price: ${prediction[0]:,.2f}")
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+
+data["total_bedrooms"] = data["total_bedrooms"].fillna(
+    data["total_bedrooms"].median()
+)
+
+
+data["total_bedrooms"] = data["total_bedrooms"].fillna(
+    data["total_bedrooms"].median()
+)
+
+
+data["total_bedrooms"] = data["total_bedrooms"].fillna(data["total_bedrooms"].median())
+data["rooms_per_household"] = data["total_rooms"] / data["households"]
+data["bedrooms_per_room"] = data["total_bedrooms"] / data["total_rooms"]
+data["population_per_household"] = data["population"] / data["households"]
+display(data.head())
+
+data.info()
+
+X = data.drop("median_house_value", axis=1)
+y = data["median_house_value"]
+X_train, X_test, y_train, y_test = train_test_split(
+X,
+y,
+test_size=0.2,
+random_state=42
+)
+print(f"X_train shape: {X_train.shape}")
+print(f"X_test shape: {X_test.shape}")
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+print("Data scaled successfully.")
+
+lin_model = LinearRegression()
+lin_model.fit(X_train, y_train)
+
+y_pred = lin_model.predict(X_test)
+print("Linear Regression model trained and predictions made successfully.")
+
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print(f"Mean Squared Error: {mse}")
+print(f"R-squared: {r2}")
+
+print("Linear Regression R2:", r2_score(y_test,y_pred))
+tree = DecisionTreeRegressor()
+tree.fit(X_train,y_train)
+tree_pred = tree.predict(X_test)
+print("Decision Tree R2:", r2_score(y_test,tree_pred))
+
+forest = RandomForestRegressor()
+forest.fit(X_train,y_train)
+forest_pred = forest.predict(X_test)
+print("Random Forest R2:", r2_score(y_test,forest_pred))
+
+scores = cross_val_score(
+lin_model,
+X_train,
+y_train,
+cv=5,
+scoring="r2"
+)
+print(scores)
+print("Average Score:", scores.mean())
+
+from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import RandomForestRegressor
+
+param_grid = {
+    "n_estimators":[100,200],
+    "max_depth":[10,20]
+}
+grid = GridSearchCV(
+    RandomForestRegressor(),
+    param_grid,
+    cv=5,
+    n_jobs=-1
+)
+grid.fit(X_train,y_train)
+
+if not hasattr(grid, 'best_estimator_'):
+    print("GridSearchCV's fit() method has not been executed. Running fit now...")
+    grid.fit(X_train, y_train)
+best_model = grid.best_estimator_
+print("Best Parameters:", grid.best_params_)
+print("Best Score:", grid.best_score_)
+
+y_pred = best_model.predict(X_test)
+print("Final R2:", r2_score(y_test,y_pred))
+print("MSE:", mean_squared_error(y_test,y_pred))
+
+joblib.dump(best_model,"house_price_model.pkl")
+
+sample = X_test[:1]
+prediction = best_model.predict(sample)
+print("Predicted Price:", prediction)
